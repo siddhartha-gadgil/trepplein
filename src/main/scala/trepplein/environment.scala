@@ -1,6 +1,6 @@
 package trepplein
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 import scala.language.implicitConversions
 import scala.util.Try
 
@@ -11,7 +11,11 @@ sealed trait Declaration {
 
   def asAxiom: Axiom = Axiom(name, univParams, ty)
 }
-final case class Axiom(name: Name, univParams: Vector[Level.Param], ty: Expr, builtin: Boolean = false) extends Declaration {
+final case class Axiom(name: Name,
+                       univParams: Vector[Level.Param],
+                       ty: Expr,
+                       builtin: Boolean = false)
+    extends Declaration {
   def check(env: PreEnvironment): Unit = {
     require(!env.declarations.contains(name))
     require(ty.univParams.subsetOf(univParams.toSet))
@@ -21,8 +25,12 @@ final case class Axiom(name: Name, univParams: Vector[Level.Param], ty: Expr, bu
     tc.inferUniverseOfType(ty)
   }
 }
-final case class Definition(name: Name, univParams: Vector[Level.Param],
-    ty: Expr, value: Expr, height: Int = 0) extends Declaration {
+final case class Definition(name: Name,
+                            univParams: Vector[Level.Param],
+                            ty: Expr,
+                            value: Expr,
+                            height: Int = 0)
+    extends Declaration {
   def check(env: PreEnvironment): Unit = {
     asAxiom.check(env)
     require(!value.hasVars)
@@ -49,8 +57,8 @@ final case class AxiomMod(ax: Axiom) extends Modification {
   def name: Name = ax.name
 
   def compile(env: PreEnvironment) = new CompiledModification {
-    def check(): Unit = ax.check(env)
-    def decls: Seq[Declaration] = Seq(ax)
+    def check(): Unit             = ax.check(env)
+    def decls: Seq[Declaration]   = Seq(ax)
     def rules: Seq[ReductionRule] = Seq()
   }
 }
@@ -60,14 +68,19 @@ final case class DefMod(defn: Definition) extends Modification {
   val decls = Seq(defn)
 
   def compile(env: PreEnvironment) = new CompiledModification {
-    val height: Int = defn.value.constants.view.
-      flatMap(env.get).
-      collect { case d: Definition => d.height }.
-      fold(0)(math.max) + 1
+    val height: Int = defn.value.constants.view
+      .flatMap(env.get)
+      .collect { case d: Definition => d.height }
+      .fold(0)(math.max) + 1
 
-    def check(): Unit = defn.check(env)
+    def check(): Unit           = defn.check(env)
     def decls: Seq[Declaration] = Seq(defn.copy(height = height))
-    def rules: Seq[ReductionRule] = Seq(ReductionRule(Vector[Binding](), Const(defn.name, defn.univParams), defn.value, List()))
+    def rules: Seq[ReductionRule] =
+      Seq(
+        ReductionRule(Vector[Binding](),
+                      Const(defn.name, defn.univParams),
+                      defn.value,
+                      List()))
   }
 }
 
@@ -88,34 +101,49 @@ sealed class PreEnvironment protected (
   private def addDeclsFor(mod: CompiledModification): Map[Name, Declaration] =
     declarations ++ mod.decls.view.map(d => d.name -> d)
 
-  def addWithFuture(mod: Modification)(implicit executionContext: ExecutionContext): (Future[Option[EnvironmentUpdateError]], PreEnvironment) = {
+  def addWithFuture(mod: Modification)(implicit
+                                       executionContext: ExecutionContext)
+    : (Future[Option[EnvironmentUpdateError]], PreEnvironment) = {
     val compiled = mod.compile(this)
     val checkingTask = Future {
-      Try(compiled.check()).failed.toOption.
-        map(t => EnvironmentUpdateError(mod, t.getMessage))
+      Try(compiled.check()).failed.toOption.map(t =>
+        EnvironmentUpdateError(mod, t.getMessage))
     }
-    checkingTask -> new PreEnvironment(addDeclsFor(compiled), reductions ++ compiled.rules, checkingTask :: proofObligations)
+    checkingTask -> new PreEnvironment(addDeclsFor(compiled),
+                                       reductions ++ compiled.rules,
+                                       checkingTask :: proofObligations)
   }
 
   def addNow(mod: Modification): PreEnvironment = {
     val compiled = mod.compile(this)
     compiled.check()
-    new PreEnvironment(addDeclsFor(compiled), reductions ++ compiled.rules, proofObligations)
+    new PreEnvironment(addDeclsFor(compiled),
+                       reductions ++ compiled.rules,
+                       proofObligations)
   }
 
-  def add(mod: Modification)(implicit executionContext: ExecutionContext): PreEnvironment =
+  def add(mod: Modification)(
+      implicit
+      executionContext: ExecutionContext): PreEnvironment =
     addWithFuture(mod)._2
 
-  def force(implicit executionContext: ExecutionContext): Future[Either[Seq[EnvironmentUpdateError], Environment]] =
+  def force(implicit executionContext: ExecutionContext)
+    : Future[Either[Seq[EnvironmentUpdateError], Environment]] =
     Environment.force(this)
 }
 
-final class Environment private (declarations: Map[Name, Declaration], reductionMap: ReductionMap)
-  extends PreEnvironment(declarations, reductionMap, Nil)
+final class Environment private (declarations: Map[Name, Declaration],
+                                 reductionMap: ReductionMap)
+    extends PreEnvironment(declarations, reductionMap, Nil)
 object Environment {
-  def force(preEnvironment: PreEnvironment)(implicit executionContext: ExecutionContext): Future[Either[Seq[EnvironmentUpdateError], Environment]] =
+  def force(preEnvironment: PreEnvironment)(implicit
+                                            executionContext: ExecutionContext)
+    : Future[Either[Seq[EnvironmentUpdateError], Environment]] =
     Future.sequence(preEnvironment.proofObligations).map(_.flatten).map {
-      case Nil => Right(new Environment(preEnvironment.declarations, preEnvironment.reductions))
+      case Nil =>
+        Right(
+          new Environment(preEnvironment.declarations,
+                          preEnvironment.reductions))
       case exs => Left(exs)
     }
 

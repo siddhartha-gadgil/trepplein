@@ -53,7 +53,11 @@ sealed trait Doc {
         case Line(orElse) if flatMode =>
           out ++= orElse
         case Group(a) =>
-          go(a, nest, flatMode || out.size + a.flatSize + distToNextLine <= endOfLine, distToNextLine)
+          go(
+            a,
+            nest,
+            flatMode || out.size + a.flatSize + distToNextLine <= endOfLine,
+            distToNextLine)
       }
     go(this, nest = 0, flatMode = false, distToNextLine = 0)
     out.result()
@@ -79,7 +83,8 @@ object Doc {
   def stack(lines: Traversable[Doc]): Doc = sep(lines, line)
 
   def wordwrap(ds: Iterable[Doc]): Doc =
-    ds.view.zipWithIndex.
-      map { case (d, i) => if (i == 0) d else (line <> d).group }.
-      reduceLeftOption(_ <> _).getOrElse("")
+    ds.view.zipWithIndex
+      .map { case (d, i) => if (i == 0) d else (line <> d).group }
+      .reduceLeftOption(_ <> _)
+      .getOrElse("")
 }
