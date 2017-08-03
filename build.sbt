@@ -16,11 +16,11 @@ libraryDependencies += "org.specs2"       %% "specs2-core" % "3.9.4" % "test"
 
 enablePlugins(JavaAppPackaging)
 javaOptions in Universal ++= Seq("-J-Xss30m", "-J-Xmx300m")
-//
-// import scalariform.formatter.preferences._
-// import com.typesafe.sbt.SbtScalariform.ScalariformKeys
-// ScalariformKeys.preferences := ScalariformKeys.preferences.value
-//   .setPreference(DoubleIndentConstructorArguments, true)
+
+import scalariform.formatter.preferences._
+import com.typesafe.sbt.SbtScalariform.ScalariformKeys
+ScalariformKeys.preferences := ScalariformKeys.preferences.value
+  .setPreference(DoubleIndentConstructorArguments, true)
 
 libraryDependencies += "com.lihaoyi" % "ammonite" % "1.0.1" % "test" cross CrossVersion.full
 
