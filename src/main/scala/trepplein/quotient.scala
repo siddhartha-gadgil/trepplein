@@ -7,11 +7,10 @@ object quotient {
   val R = LocalConst(
     Binding(Name("R"), A -->: A -->: Sort.Prop, BinderInfo.Default))
 
-  val quot = Axiom(
-    Name("quot"),
-    univParams,
-    Pis(A, R)(Sort(univParams(0))),
-    builtin = true)
+  val quot = Axiom(Name("quot"),
+                   univParams,
+                   Pis(A, R)(Sort(univParams(0))),
+                   builtin = true)
 
   val quotMk = Axiom(
     Name.Str(quot.name, "mk"),
@@ -31,57 +30,50 @@ object quotient {
     liftUnivParams,
     Pis(A, R, B, f)(
       Pis(a, b)(
-        Apps(R, a, b) -->: Apps(
-          Const(Name("eq"), Vector(liftUnivParams(1))),
-          B,
-          App(f, a),
-          App(f, b))) -->:
+        Apps(R, a, b) -->: Apps(Const(Name("eq"), Vector(liftUnivParams(1))),
+                                B,
+                                App(f, a),
+                                App(f, b))) -->:
         Apps(Const(quot.name, Vector(liftUnivParams(0))), A, R) -->: B),
-    builtin = true)
+    builtin = true
+  )
 
   val B2 = LocalConst(
-    Binding(
-      Name("B"),
-      Apps(Const(quot.name, Vector(univParams(0))), A, R) -->: Sort.Prop,
-      BinderInfo.Implicit))
+    Binding(Name("B"),
+            Apps(Const(quot.name, Vector(univParams(0))), A, R) -->: Sort.Prop,
+            BinderInfo.Implicit))
   val q = LocalConst(
-    Binding(
-      Name("q"),
-      Apps(Const(quot.name, Vector(univParams(0))), A, R),
-      BinderInfo.Default))
+    Binding(Name("q"),
+            Apps(Const(quot.name, Vector(univParams(0))), A, R),
+            BinderInfo.Default))
   val quotInd = Axiom(
     Name.Str(quot.name, "ind"),
     univParams,
-    Pis(A, R, B2)(Pi(
-      a,
-      Apps(
-        B2,
-        Apps(
-          Const(quotMk.name, Vector(univParams(0))),
-          A,
-          R,
-          a))) -->: Pi(q, Apps(B2, q))),
-    builtin = true)
+    Pis(A, R, B2)(Pi(a,
+                     Apps(B2,
+                          Apps(Const(quotMk.name, Vector(univParams(0))),
+                               A,
+                               R,
+                               a))) -->: Pi(q, Apps(B2, q))),
+    builtin = true
+  )
 
   val h = LocalConst(
-    Binding(
-      Name("h"),
-      Apps(
-        Const(Name("eq"), Vector(liftUnivParams(1))),
-        B,
-        App(f, a),
-        App(f, b)),
-      BinderInfo.Default))
+    Binding(Name("h"),
+            Apps(Const(Name("eq"), Vector(liftUnivParams(1))),
+                 B,
+                 App(f, a),
+                 App(f, b)),
+            BinderInfo.Default))
   val quotRed = ReductionRule(
     Vector(A, R, B, f, a, h),
-    Apps(
-      Const(quotLift.name, univParams),
-      A,
-      R,
-      B,
-      f,
-      h,
-      Apps(Const(quotMk.name, Vector(univParams(0))), A, R, a)),
+    Apps(Const(quotLift.name, univParams),
+         A,
+         R,
+         B,
+         f,
+         h,
+         Apps(Const(quotMk.name, Vector(univParams(0))), A, R, a)),
     Apps(f, a),
     List())
 }

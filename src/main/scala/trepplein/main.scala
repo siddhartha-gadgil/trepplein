@@ -5,55 +5,55 @@ import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class LibraryPrinter(
-    env: PreEnvironment,
-    notations: Map[Name, Notation],
-    out: String => Unit,
-    prettyOptions: PrettyOptions,
-    lineWidth: Int = 80,
-    printReductions: Boolean = false,
-    printDependencies: Boolean = true) {
+class LibraryPrinter(env: PreEnvironment,
+                     notations: Map[Name, Notation],
+                     out: String => Unit,
+                     prettyOptions: PrettyOptions,
+                     lineWidth: Int = 80,
+                     printReductions: Boolean = false,
+                     printDependencies: Boolean = true) {
   private val declsPrinted = mutable.Map[Name, Unit]()
   def printDecl(name: Name): Unit =
     declsPrinted.getOrElseUpdate(
       name, {
-      val tc = new TypeChecker(env, unsafeUnchecked = true)
-      val pp = new PrettyPrinter(
-        typeChecker = Some(tc),
-        notations = notations,
-        options = prettyOptions)
+        val tc = new TypeChecker(env, unsafeUnchecked = true)
+        val pp = new PrettyPrinter(typeChecker = Some(tc),
+                                   notations = notations,
+                                   options = prettyOptions)
 
-      val decl = env(name)
-      if (printDependencies) {
-        decl.ty.constants.foreach(printDecl)
-        decl match {
-          case decl: Definition if !prettyOptions.hideProofs || !tc.isProposition(decl.ty) =>
-            decl.value.constants.foreach(printDecl)
-          case _ =>
+        val decl = env(name)
+        if (printDependencies) {
+          decl.ty.constants.foreach(printDecl)
+          decl match {
+            case decl: Definition
+                if !prettyOptions.hideProofs || !tc.isProposition(decl.ty) =>
+              decl.value.constants.foreach(printDecl)
+            case _ =>
+          }
         }
+
+        var doc = pp.pp(decl)
+
+        val reds = env.reductions.get(name)
+        if (printReductions && reds.nonEmpty) {
+          doc = doc <> "/-" </> Doc.stack(reds.map {
+            case ReductionRule(ctx, lhs, rhs, eqs) =>
+              def mkEq(a: Expr, b: Expr): Expr =
+                Apps(Const("eq", Vector(1)), Sort.Prop, a, b)
+              val term1 =
+                eqs.map((mkEq _).tupled).foldRight(mkEq(lhs, rhs))(_ -->: _)
+              val term2 = ctx.foldRight(term1)(Lam(_, _))
+              pp.parseBinders(term2) { (ctx_, t) =>
+                Doc.text("reduction") <+> pp.nest(
+                  Doc.wordwrap(pp.telescope(ctx_) :+ Doc.text(":"))) </>
+                  pp.pp(t).parens(0).group <> Doc.line
+              }
+          }) <> "-/" <> Doc.line
+        }
+
+        out((doc <> Doc.line).render(lineWidth))
       }
-
-      var doc = pp.pp(decl)
-
-      val reds = env.reductions.get(name)
-      if (printReductions && reds.nonEmpty) {
-        doc = doc <> "/-" </> Doc.stack(reds.map {
-          case ReductionRule(ctx, lhs, rhs, eqs) =>
-            def mkEq(a: Expr, b: Expr): Expr =
-              Apps(Const("eq", Vector(1)), Sort.Prop, a, b)
-            val term1 =
-              eqs.map((mkEq _).tupled).foldRight(mkEq(lhs, rhs))(_ -->: _)
-            val term2 = ctx.foldRight(term1)(Lam(_, _))
-            pp.parseBinders(term2) { (ctx_, t) =>
-              Doc.text("reduction") <+> pp.nest(
-                Doc.wordwrap(pp.telescope(ctx_) :+ Doc.text(":"))) </>
-                pp.pp(t).parens(0).group <> Doc.line
-            }
-        }) <> "-/" <> Doc.line
-      }
-
-      out((doc <> Doc.line).render(lineWidth))
-    })
+    )
 
   private val axiomsChecked = mutable.Map[Name, Unit]()
   def checkAxioms(name: Name): Unit =
@@ -67,7 +67,8 @@ class LibraryPrinter(
           ty.constants.foreach(checkAxioms)
           printDecl(name)
         // TODO: inductive, quotient
-      })
+      }
+    )
 
   def handleArg(name: Name): Unit = {
     checkAxioms(name)
@@ -86,23 +87,21 @@ class LibraryPrinter(
       |""".stripMargin
 }
 
-case class MainOpts(
-    inputFile: String = "",
-    printAllDecls: Boolean = false,
-    printDecls: Seq[Name] = Seq(),
-    printDependencies: Boolean = false,
-    printReductions: Boolean = false,
-    validLean: Boolean = false,
-    showImplicits: Boolean = false,
-    useNotation: Boolean = true,
-    hideProofs: Boolean = true,
-    hideProofTerms: Boolean = false) {
+case class MainOpts(inputFile: String = "",
+                    printAllDecls: Boolean = false,
+                    printDecls: Seq[Name] = Seq(),
+                    printDependencies: Boolean = false,
+                    printReductions: Boolean = false,
+                    validLean: Boolean = false,
+                    showImplicits: Boolean = false,
+                    useNotation: Boolean = true,
+                    hideProofs: Boolean = true,
+                    hideProofTerms: Boolean = false) {
   def prettyOpts =
-    PrettyOptions(
-      showImplicits = showImplicits,
-      hideProofs = hideProofs,
-      hideProofTerms = hideProofTerms,
-      showNotation = useNotation)
+    PrettyOptions(showImplicits = showImplicits,
+                  hideProofs = hideProofs,
+                  hideProofTerms = hideProofTerms,
+                  showNotation = useNotation)
 }
 object MainOpts {
   val parser = new scopt.OptionParser[MainOpts]("trepplein") {
@@ -126,10 +125,9 @@ object MainOpts {
     opt[Unit]("valid-lean")
       .action(
         (_, c) =>
-          c.copy(
-            validLean = true,
-            printDependencies = true,
-            useNotation = false))
+          c.copy(validLean = true,
+                 printDependencies = true,
+                 useNotation = false))
       .text("try to produce output that can be parsed again")
 
     opt[Boolean]("show-implicits")

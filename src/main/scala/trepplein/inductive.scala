@@ -2,15 +2,14 @@ package trepplein
 
 import trepplein.Level.Param
 
-final case class InductiveType(
-    name: Name,
-    univParams: Vector[Level.Param],
-    ty: Expr) {
+final case class InductiveType(name: Name,
+                               univParams: Vector[Level.Param],
+                               ty: Expr) {
   val decl = Axiom(name, univParams, ty, builtin = true)
 }
 
 final case class CompiledIndMod(indMod: IndMod, env: PreEnvironment)
-  extends CompiledModification {
+    extends CompiledModification {
   import indMod._
   val tc = new TypeChecker(env.addNow(inductiveType.decl))
   import tc.NormalizedPis
@@ -18,7 +17,7 @@ final case class CompiledIndMod(indMod: IndMod, env: PreEnvironment)
   def name: Name = inductiveType.name
 
   def univParams: Vector[Param] = inductiveType.univParams
-  val indTy = Const(inductiveType.name, univParams)
+  val indTy                     = Const(inductiveType.name, univParams)
 
   val ((params, indices), level) =
     inductiveType.ty match {
@@ -36,17 +35,16 @@ final case class CompiledIndMod(indMod: IndMod, env: PreEnvironment)
 
     val argInfos: List[ArgInfo] = arguments.map {
       case LocalConst(
-        Binding(_,
-          NormalizedPis(
-            eps,
-            Apps(recArgIndTy @ Const(inductiveType.name, _), recArgs)),
-          _),
-        _,
-        _) =>
+          Binding(_,
+                  NormalizedPis(
+                    eps,
+                    Apps(recArgIndTy @ Const(inductiveType.name, _), recArgs)),
+                  _),
+          _,
+          _) =>
         require(recArgs.size >= numParams)
-        tc.requireDefEq(
-          Apps(recArgIndTy, recArgs.take(numParams)),
-          indTyWParams)
+        tc.requireDefEq(Apps(recArgIndTy, recArgs.take(numParams)),
+                        indTyWParams)
         Right((eps, recArgs.drop(numParams)))
       case nonRecArg => Left(nonRecArg)
     }
@@ -55,19 +53,17 @@ final case class CompiledIndMod(indMod: IndMod, env: PreEnvironment)
       (arguments, argInfos).zipped.collect {
         case (recArg, Right((eps, recIndices))) =>
           LocalConst(
-            Binding(
-              "ih",
-              Pis(eps)(mkMotiveApp(recIndices, Apps(recArg, eps))),
-              BinderInfo.Default))
+            Binding("ih",
+                    Pis(eps)(mkMotiveApp(recIndices, Apps(recArg, eps))),
+                    BinderInfo.Default))
       }
 
     lazy val minorPremise = LocalConst(
       Binding(
         "h",
         Pis(arguments ++ ihs)(
-          mkMotiveApp(
-            introTyIndices,
-            Apps(Const(name, univParams), params ++ arguments))),
+          mkMotiveApp(introTyIndices,
+                      Apps(Const(name, univParams), params ++ arguments))),
         BinderInfo.Default))
 
     lazy val redRule: ReductionRule = {
@@ -82,19 +78,18 @@ final case class CompiledIndMod(indMod: IndMod, env: PreEnvironment)
       }
       ReductionRule(
         Vector() ++ params ++ Seq(motive) ++ minorPremises ++ indices ++ arguments,
-        Apps(
-          Const(elimDecl.name, elimLevelParams),
-          params ++ Seq(motive) ++ minorPremises ++ indices
-            :+ Apps(Const(name, univParams), params ++ arguments)),
+        Apps(Const(elimDecl.name, elimLevelParams),
+             params ++ Seq(motive) ++ minorPremises ++ indices
+               :+ Apps(Const(name, univParams), params ++ arguments)),
         Apps(minorPremise, arguments ++ recCalls),
-        List())
+        List()
+      )
     }
 
     def check(): Unit = {
       require(introTyArgs.size >= numParams)
-      tc.requireDefEq(
-        Apps(introType, introTyArgs.take(numParams)),
-        Apps(indTy, params))
+      tc.requireDefEq(Apps(introType, introTyArgs.take(numParams)),
+                      Apps(indTy, params))
 
       val tc0 = new TypeChecker(env)
       arguments.zip(argInfos).foreach {
@@ -131,7 +126,7 @@ final case class CompiledIndMod(indMod: IndMod, env: PreEnvironment)
       Pis(
         indices :+ LocalConst(
           Binding("c", Apps(indTy, params ++ indices), BinderInfo.Default)))(
-          Sort(elimLevel))
+        Sort(elimLevel))
     else
       Pis(indices)(Sort(elimLevel))
   val motive = LocalConst(Binding("C", motiveType, BinderInfo.Implicit))
@@ -155,14 +150,14 @@ final case class CompiledIndMod(indMod: IndMod, env: PreEnvironment)
           ReductionRule(
             Vector() ++ params ++ Seq(motive) ++ minorPremises ++ indices ++ Seq(
               majorPremise),
-            Apps(
-              Const(elimDecl.name, elimLevelParams),
-              params ++ Seq(motive) ++ minorPremises ++ indices
-                ++ Seq(majorPremise)),
+            Apps(Const(elimDecl.name, elimLevelParams),
+                 params ++ Seq(motive) ++ minorPremises ++ indices
+                   ++ Seq(majorPremise)),
             minorPremises(0),
             (intro.introTyArgs zip (params ++ indices)).filter {
               case (a, b) => a != b
-            }))
+            }
+          ))
       case _ => None
     }
 
@@ -170,7 +165,8 @@ final case class CompiledIndMod(indMod: IndMod, env: PreEnvironment)
     for (i <- compiledIntros)
       yield Axiom(i.name, univParams, i.ty, builtin = true)
 
-  val decls: Vector[Declaration] = Axiom(name, univParams, inductiveType.ty) +: introDecls :+ elimDecl
+  val decls
+    : Vector[Declaration] = Axiom(name, univParams, inductiveType.ty) +: introDecls :+ elimDecl
   val rules: Vector[ReductionRule] =
     if (kIntroRule.isDefined)
       kIntroRule.toVector
@@ -190,11 +186,10 @@ final case class CompiledIndMod(indMod: IndMod, env: PreEnvironment)
   }
 }
 
-final case class IndMod(
-    inductiveType: InductiveType,
-    numParams: Int,
-    intros: Vector[(Name, Expr)])
-  extends Modification {
+final case class IndMod(inductiveType: InductiveType,
+                        numParams: Int,
+                        intros: Vector[(Name, Expr)])
+    extends Modification {
   def name: Name = inductiveType.name
 
   def compile(env: PreEnvironment) = CompiledIndMod(this, env)

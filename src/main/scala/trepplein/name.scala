@@ -23,7 +23,7 @@ sealed abstract class Name extends Product {
   override def equals(that: Any): Boolean =
     that match {
       case that: Name => equals(this, that)
-      case _ => false
+      case _          => false
     }
 
   override def toString: String = {
@@ -48,7 +48,7 @@ sealed abstract class Name extends Product {
 
   def dump: String =
     this match {
-      case Anon => "Name.Anon"
+      case Anon              => "Name.Anon"
       case Str(prefix, limb) => s"""Name.Str(${prefix.dump}, "$limb")"""
       case Num(prefix, limb) => s"Name.Num(${prefix.dump}, $limb)"
     }
@@ -62,9 +62,9 @@ object Name {
       .filterNot(blacklist)
       .head
 
-  case object Anon extends Name
+  case object Anon                                 extends Name
   final case class Str(prefix: Name, limb: String) extends Name
-  final case class Num(prefix: Name, limb: Long) extends Name
+  final case class Num(prefix: Name, limb: Long)   extends Name
 
   implicit def ofString(s: String): Name = Name(s.split("\\."): _*)
 }
