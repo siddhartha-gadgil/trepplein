@@ -1,5 +1,7 @@
 package trepplein
 
+import java.util.function.Predicate
+
 import trepplein.Level._
 
 import scala.annotation.tailrec
@@ -9,108 +11,108 @@ sealed abstract class BinderInfo extends Product {
   def dump = s"BinderInfo.$productPrefix"
 }
 object BinderInfo {
-  case object Default        extends BinderInfo
-  case object Implicit       extends BinderInfo
+  case object Default extends BinderInfo
+  case object Implicit extends BinderInfo
   case object StrictImplicit extends BinderInfo
-  case object InstImplicit   extends BinderInfo
+  case object InstImplicit extends BinderInfo
 }
 
 case class Binding(prettyName: Name, ty: Expr, info: BinderInfo) {
-  def abstr(off: Int, lcs: Vector[LocalConst]): Binding =
-    copy(ty = ty.abstr(off, lcs))
-
-  def instantiate(off: Int, es: Vector[Expr]): Binding =
-    copy(ty = ty.instantiate(off, es))
-
-  def instantiate(subst: Map[Param, Level]): Binding =
-    copy(ty = ty.instantiate(subst))
-  def instantiateCore(subst: Map[Param, Level]): Binding =
-    copy(ty = ty.instantiateCore(subst))
-
   def dump(implicit lcs: mutable.Map[LocalConst.Name, String]) =
     s"Binding(${prettyName.dump}, ${ty.dump}, ${info.dump})"
 
-  override val hashCode
-    : Int = prettyName.hashCode + 37 * (ty.hashCode + 37 * info.hashCode)
+  override val hashCode: Int = prettyName.hashCode + 37 * (ty.hashCode + 37 * info.hashCode)
 }
 
-sealed abstract class Expr(val varBound: Int, val hasLocals: Boolean)
-    extends Product {
-  def hasVar(i: Int): Boolean =
+private class ExprCache extends java.util.IdentityHashMap[Expr, Expr] {
+  @inline final def getOrElseUpdate(k: Expr)(v: Expr => Expr): Expr = {
+    val cached = get(k)
+    if (cached != null) {
+      cached
+    } else {
+      val computed = v(k)
+      put(k, computed)
+      computed
+    }
+  }
+}
+private class ExprOffCache extends mutable.ArrayBuffer[ExprCache] {
+  @inline final def getOrElseUpdate(k: Expr, off: Int)(v: Expr => Expr): Expr = {
+    while (off >= size) this += new ExprCache
+    this(off).getOrElseUpdate(k)(v)
+  }
+}
+
+private object Breadcrumb
+
+sealed abstract class Expr(val varBound: Int, val hasLocals: Boolean) extends Product {
+  final def hasVar(i: Int): Boolean =
     this match {
       case _ if varBound <= i => false
-      case Var(idx)           => idx == i
-      case App(a, b)          => a.hasVar(i) || b.hasVar(i)
-      case Lam(dom, body)     => dom.ty.hasVar(i) || body.hasVar(i + 1)
-      case Pi(dom, body)      => dom.ty.hasVar(i) || body.hasVar(i + 1)
-      case Let(dom, value, body) =>
-        dom.ty.hasVar(i) || value.hasVar(i) || body.hasVar(i + 1)
+      case Var(idx) => idx == i
+      case App(a, b) => a.hasVar(i) || b.hasVar(i)
+      case Lam(dom, body) => dom.ty.hasVar(i) || body.hasVar(i + 1)
+      case Pi(dom, body) => dom.ty.hasVar(i) || body.hasVar(i + 1)
+      case Let(dom, value, body) => dom.ty.hasVar(i) || value.hasVar(i) || body.hasVar(i + 1)
     }
 
   def hasVars: Boolean = varBound > 0
 
   def abstr(lc: LocalConst): Expr = abstr(0, Vector(lc))
   def abstr(off: Int, lcs: Vector[LocalConst]): Expr =
-    this match {
+    abstrCore(off, lcs)(new ExprOffCache)
+  private def abstrCore(off: Int, lcs: Vector[LocalConst])(implicit cache: ExprOffCache): Expr =
+    cache.getOrElseUpdate(this, off) {
       case _ if !hasLocals => this
-      case LocalConst(_, name, _) =>
+      case LocalConst(_, name) =>
         lcs.indexWhere(_.name == name) match {
           case -1 => this
-          case i  => Var(i + off)
+          case i => Var(i + off)
         }
       case App(a, b) =>
-        App(a.abstr(off, lcs), b.abstr(off, lcs))
+        App(a.abstrCore(off, lcs), b.abstrCore(off, lcs))
       case Lam(domain, body) =>
-        Lam(domain.abstr(off, lcs), body.abstr(off + 1, lcs))
+        Lam(domain.copy(ty = domain.ty.abstrCore(off, lcs)), body.abstrCore(off + 1, lcs))
       case Pi(domain, body) =>
-        Pi(domain.abstr(off, lcs), body.abstr(off + 1, lcs))
+        Pi(domain.copy(ty = domain.ty.abstrCore(off, lcs)), body.abstrCore(off + 1, lcs))
       case Let(domain, value, body) =>
-        Let(domain.abstr(off, lcs),
-            value.abstr(off, lcs),
-            body.abstr(off + 1, lcs))
+        Let(domain.copy(ty = domain.ty.abstrCore(off, lcs)), value.abstrCore(off, lcs), body.abstrCore(off + 1, lcs))
     }
 
   def instantiate(e: Expr): Expr = instantiate(0, Vector(e))
   def instantiate(off: Int, es: Vector[Expr]): Expr =
-    this match {
+    if (varBound <= off) this else
+      instantiateCore(off, es)(new ExprOffCache)
+  private def instantiateCore(off: Int, es: Vector[Expr])(implicit cache: ExprOffCache): Expr =
+    cache.getOrElseUpdate(this, off) {
       case _ if varBound <= off => this
-      case Var(idx) =>
-        if (off <= idx && idx < off + es.size) es(idx - off) else this
-      case App(a, b) => App(a.instantiate(off, es), b.instantiate(off, es))
-      case Lam(domain, body) =>
-        Lam(domain.instantiate(off, es), body.instantiate(off + 1, es))
-      case Pi(domain, body) =>
-        Pi(domain.instantiate(off, es), body.instantiate(off + 1, es))
-      case Let(domain, value, body) =>
-        Let(domain.instantiate(off, es),
-            value.instantiate(off, es),
-            body.instantiate(off + 1, es))
+      case Var(idx) => if (off <= idx && idx < off + es.size) es(idx - off) else this
+      case App(a, b) => App(a.instantiateCore(off, es), b.instantiateCore(off, es))
+      case Lam(domain, body) => Lam(domain.copy(ty = domain.ty.instantiateCore(off, es)), body.instantiateCore(off + 1, es))
+      case Pi(domain, body) => Pi(domain.copy(ty = domain.ty.instantiateCore(off, es)), body.instantiateCore(off + 1, es))
+      case Let(domain, value, body) => Let(
+        domain.copy(ty = domain.ty.instantiateCore(off, es)),
+        value.instantiateCore(off, es), body.instantiateCore(off + 1, es))
     }
 
   def instantiate(subst: Map[Param, Level]): Expr =
-    if (subst.forall(x => x._1 == x._2)) this else instantiateCore(subst)
-  def instantiateCore(subst: Map[Param, Level]): Expr =
-    this match {
-      case v: Var              => v
-      case Sort(level)         => Sort(level.instantiate(subst))
+    if (subst.forall(x => x._1 == x._2)) this else instantiateCore(subst)(new ExprCache)
+  private def instantiateCore(subst: Map[Param, Level])(implicit cache: ExprCache): Expr =
+    cache.getOrElseUpdate(this) {
+      case v: Var => v
+      case Sort(level) => Sort(level.instantiate(subst))
       case Const(name, levels) => Const(name, levels.map(_.instantiate(subst)))
-      case LocalConst(of, name, value) =>
-        LocalConst(of.instantiateCore(subst),
-                   name,
-                   value.map(_.instantiateCore(subst)))
+      case LocalConst(of, name) => LocalConst(of.copy(ty = of.ty.instantiateCore(subst)), name)
       case App(a, b) => App(a.instantiateCore(subst), b.instantiateCore(subst))
-      case Lam(domain, body) =>
-        Lam(domain.instantiateCore(subst), body.instantiateCore(subst))
-      case Pi(domain, body) =>
-        Pi(domain.instantiateCore(subst), body.instantiateCore(subst))
-      case Let(domain, value, body) =>
-        Let(domain.instantiateCore(subst),
-            value.instantiateCore(subst),
-            body.instantiateCore(subst))
+      case Lam(domain, body) => Lam(domain.copy(ty = domain.ty.instantiateCore(subst)), body.instantiateCore(subst))
+      case Pi(domain, body) => Pi(domain.copy(ty = domain.ty.instantiateCore(subst)), body.instantiateCore(subst))
+      case Let(domain, value, body) => Let(
+        domain.copy(ty = domain.ty.instantiateCore(subst)),
+        value.instantiateCore(subst), body.instantiateCore(subst))
     }
 
-  def foreach_(f: Expr => Boolean): Unit =
-    if (f(this)) this match {
+  final def foreach_(f: Predicate[Expr]): Unit =
+    if (f.test(this)) this match {
       case App(a, b) =>
         a.foreach_(f)
         b.foreach_(f)
@@ -127,12 +129,19 @@ sealed abstract class Expr(val varBound: Int, val hasLocals: Boolean)
       case _: Var | _: Const | _: Sort | _: LocalConst =>
     }
 
-  def foreach(f: Expr => Unit): Unit =
+  @inline final def foreachNoDups(f: Expr => Unit): Unit = {
+    val seen = new java.util.IdentityHashMap[Expr, Breadcrumb.type]()
     foreach_ { x =>
-      f(x); true
+      if (seen.put(x, Breadcrumb) == null) {
+        f(x)
+        true
+      } else {
+        false
+      }
     }
+  }
 
-  private def buildSet[T](f: mutable.Set[T] => Unit): Set[T] = {
+  @inline private def buildSet[T](f: mutable.Set[T] => Unit): Set[T] = {
     val set = mutable.Set[T]()
     f(set)
     set.toSet
@@ -140,18 +149,18 @@ sealed abstract class Expr(val varBound: Int, val hasLocals: Boolean)
 
   def univParams: Set[Param] =
     buildSet { ps =>
-      foreach {
-        case Sort(level)      => ps ++= level.univParams
+      foreachNoDups {
+        case Sort(level) => ps ++= level.univParams
         case Const(_, levels) => ps ++= levels.view.flatMap(_.univParams)
-        case _                =>
+        case _ =>
       }
     }
 
   def constants: Set[Name] =
     buildSet { cs =>
-      foreach {
+      foreachNoDups {
         case Const(name, _) => cs += name
-        case _              =>
+        case _ =>
       }
     }
 
@@ -164,31 +173,23 @@ sealed abstract class Expr(val varBound: Int, val hasLocals: Boolean)
     this match {
       case _ if lcs eq null =>
         val lcs_ = mutable.Map[LocalConst.Name, String]()
-        val d    = dump(lcs_)
-        if (lcs_.isEmpty) d
-        else {
-          val decls = lcs.values.map { n =>
-            s"val $n = new LocalConst.Name()\n"
-          }.mkString
+        val d = dump(lcs_)
+        if (lcs_.isEmpty) d else {
+          val decls = lcs.values.map { n => s"val $n = new LocalConst.Name()\n" }.mkString
           s"{$decls$d}"
         }
-      case Var(i)      => s"Var($i)"
+      case Var(i) => s"Var($i)"
       case Sort(level) => s"Sort(${level.dump})"
-      case Const(name, levels) =>
-        s"Const(${name.dump}, Vector(${levels.map(_.dump).mkString(", ")}))"
-      case App(a, b)      => s"App(${a.dump}, ${b.dump})"
+      case Const(name, levels) => s"Const(${name.dump}, Vector(${levels.map(_.dump).mkString(", ")}))"
+      case App(a, b) => s"App(${a.dump}, ${b.dump})"
       case Lam(dom, body) => s"Lam(${dom.dump}, ${body.dump})"
-      case Pi(dom, body)  => s"Pi(${dom.dump}, ${body.dump})"
-      case LocalConst(of, name, value) =>
-        val of1 =
-          of.prettyName.toString.replace('.', '_').filter { _.isLetterOrDigit }
+      case Pi(dom, body) => s"Pi(${dom.dump}, ${body.dump})"
+      case LocalConst(of, name) =>
+        val of1 = of.prettyName.toString.replace('.', '_').filter { _.isLetterOrDigit }
         val of2 = if (of1.isEmpty || !of1.head.isLetter) s"n$of1" else of1
-        val n = lcs.getOrElseUpdate(
-          name,
-          Stream.from(0).map(i => s"$of2$i").diff(lcs.values.toSeq).head)
-        s"LocalConst(${of.dump}, $n, ${value.map(_.dump)})"
-      case Let(dom, value, body) =>
-        s"Let(${dom.dump}, ${value.dump}, ${body.dump})"
+        val n = lcs.getOrElseUpdate(name, Stream.from(0).map(i => s"$of2$i").diff(lcs.values.toSeq).head)
+        s"LocalConst(${of.dump}, $n)"
+      case Let(dom, value, body) => s"Let(${dom.dump}, ${value.dump}, ${body.dump})"
     }
 }
 case class Var(idx: Int) extends Expr(varBound = idx + 1, hasLocals = false) {
@@ -198,39 +199,35 @@ case class Sort(level: Level) extends Expr(varBound = 0, hasLocals = false) {
   override val hashCode: Int = level.hashCode
 }
 
-case class Const(name: Name, levels: Vector[Level])
-    extends Expr(varBound = 0, hasLocals = false) {
+case class Const(name: Name, levels: Vector[Level]) extends Expr(varBound = 0, hasLocals = false) {
   override val hashCode: Int = 37 * name.hashCode
 }
-case class LocalConst(of: Binding,
-                      name: LocalConst.Name = new LocalConst.Name,
-                      value: Option[Expr] = None)
-    extends Expr(varBound = 0, hasLocals = true) {
-  override val hashCode
-    : Int = 4 + 37 * (of.hashCode + 37 * value.hashCode) + name.hashCode
+case class LocalConst(of: Binding, name: LocalConst.Name = new LocalConst.Name) extends Expr(varBound = 0, hasLocals = true) {
+  override val hashCode: Int = 4 + 37 * of.hashCode + name.hashCode
 }
 case class App(a: Expr, b: Expr)
-    extends Expr(varBound = math.max(a.varBound, b.varBound),
-                 hasLocals = a.hasLocals || b.hasLocals) {
+  extends Expr(
+    varBound = math.max(a.varBound, b.varBound),
+    hasLocals = a.hasLocals || b.hasLocals) {
   override val hashCode: Int = a.hashCode + 37 * b.hashCode
 }
 case class Lam(domain: Binding, body: Expr)
-    extends Expr(varBound = math.max(domain.ty.varBound, body.varBound - 1),
-                 hasLocals = domain.ty.hasLocals || body.hasLocals) {
+  extends Expr(
+    varBound = math.max(domain.ty.varBound, body.varBound - 1),
+    hasLocals = domain.ty.hasLocals || body.hasLocals) {
   override val hashCode: Int = 1 + 37 * domain.hashCode + body.hashCode
 }
 case class Pi(domain: Binding, body: Expr)
-    extends Expr(varBound = math.max(domain.ty.varBound, body.varBound - 1),
-                 hasLocals = domain.ty.hasLocals || body.hasLocals) {
+  extends Expr(
+    varBound = math.max(domain.ty.varBound, body.varBound - 1),
+    hasLocals = domain.ty.hasLocals || body.hasLocals) {
   override val hashCode: Int = 2 + 37 * domain.hashCode + body.hashCode
 }
 case class Let(domain: Binding, value: Expr, body: Expr)
-    extends Expr(
-      varBound = math.max(math.max(domain.ty.varBound, value.varBound),
-                          body.varBound - 1),
-      hasLocals = domain.ty.hasLocals || value.hasLocals || body.hasLocals) {
-  override val hashCode
-    : Int = 3 + 37 * (domain.hashCode + 37 * value.hashCode) + body.hashCode
+  extends Expr(
+    varBound = math.max(math.max(domain.ty.varBound, value.varBound), body.varBound - 1),
+    hasLocals = domain.ty.hasLocals || value.hasLocals || body.hasLocals) {
+  override val hashCode: Int = 3 + 37 * (domain.hashCode + 37 * value.hashCode) + body.hashCode
 }
 
 object Sort {
@@ -275,11 +272,16 @@ trait Binders[T <: Expr] {
     }
 }
 
+object Let {
+  def apply(x: LocalConst, v: Expr, b: Expr): Let =
+    Let(x.of, v, b.abstr(x))
+}
+
 object Lam extends Binder[Lam] {
   val generic: GenericUnapply = new GenericUnapply {
     def unapply(e: Expr) = e match {
       case e: Lam => Lam.unapply(e)
-      case _      => None
+      case _ => None
     }
   }
 }
@@ -291,7 +293,7 @@ object Pi extends Binder[Pi] {
   val generic: GenericUnapply = new GenericUnapply {
     def unapply(e: Expr) = e match {
       case e: Pi => Pi.unapply(e)
-      case _     => None
+      case _ => None
     }
   }
 }
@@ -304,7 +306,7 @@ object Apps {
   private def decompose(e: Expr, as: List[Expr] = Nil): (Expr, List[Expr]) =
     e match {
       case App(f, a) => decompose(f, a :: as)
-      case _         => (e, as)
+      case _ => (e, as)
     }
 
   def unapply(e: Expr): Some[(Expr, List[Expr])] =
