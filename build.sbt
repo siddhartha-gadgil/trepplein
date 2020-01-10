@@ -17,8 +17,8 @@ scalacOptions ++= {
   else Seq("-opt:l:inline", "-opt-inline-from:**", "-opt-warnings")
 }
 
-enablePlugins(JavaAppPackaging)
-javaOptions in Universal ++= Seq("-J-Xss30m")
+// enablePlugins(JavaAppPackaging)
+// javaOptions in Universal ++= Seq("-J-Xss30m")
 
 // import scalariform.formatter.preferences._
 // import com.typesafe.sbt.SbtScalariform.ScalariformKeys
