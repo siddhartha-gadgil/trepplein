@@ -5,7 +5,7 @@ import scala.language.implicitConversions
 import scala.util.Try
 
 final case class Declaration(name: Name, univParams: Vector[Level.Param], ty: Expr,
-    height: Int = 0, builtin: Boolean = false) {
+  height: Int = 0, builtin: Boolean = false) {
   def check(env: PreEnvironment): Unit = check(env, new TypeChecker(env))
   def check(env: PreEnvironment, tc: TypeChecker): Unit = {
     require(!env.declarations.contains(name))
@@ -65,9 +65,9 @@ case class EnvironmentUpdateError(mod: Modification, msg: String) {
 }
 
 sealed class PreEnvironment protected (
-    val declarations: Map[Name, Declaration],
-    val reductions: ReductionMap,
-    val proofObligations: List[Future[Option[EnvironmentUpdateError]]]) {
+  val declarations: Map[Name, Declaration],
+  val reductions: ReductionMap,
+  val proofObligations: List[Future[Option[EnvironmentUpdateError]]]) {
 
   def get(name: Name): Option[Declaration] =
     declarations.get(name)

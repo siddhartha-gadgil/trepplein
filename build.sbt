@@ -6,11 +6,11 @@ licenses := Seq("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0
 
 version := "1.0"
 
-scalaVersion := "2.12.10"
-crossScalaVersions := Seq("2.11.7")
+scalaVersion := "2.13.1"
+// crossScalaVersions := Seq("2.11.7")
 
-libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.0"
-libraryDependencies += "org.specs2" %% "specs2-core" % "4.2.0" % "test"
+libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.1"
+libraryDependencies += "org.specs2" %% "specs2-core" % "4.6.0" % "test"
 
 scalacOptions ++= {
   if (!scalaVersion.value.startsWith("2.12.")) Seq()

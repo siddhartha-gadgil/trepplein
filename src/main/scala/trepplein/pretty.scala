@@ -7,11 +7,11 @@ import Doc._
 import scala.collection.mutable
 
 case class PrettyOptions(
-    showImplicits: Boolean = true,
-    hideProofs: Boolean = false,
-    hideProofTerms: Boolean = false,
-    showNotation: Boolean = true,
-    nestDepth: Int = 2)
+  showImplicits: Boolean = true,
+  hideProofs: Boolean = false,
+  hideProofTerms: Boolean = false,
+  showNotation: Boolean = true,
+  nestDepth: Int = 2)
 
 sealed trait Notation {
   def fn: Name
@@ -23,9 +23,9 @@ case class Prefix(fn: Name, prio: Int, op: String) extends Notation
 case class Postfix(fn: Name, prio: Int, op: String) extends Notation
 
 class PrettyPrinter(
-    typeChecker: Option[TypeChecker] = None,
-    notations: Map[Name, Notation] = Map(),
-    options: PrettyOptions = PrettyOptions()) {
+  typeChecker: Option[TypeChecker] = None,
+  notations: Map[Name, Notation] = Map(),
+  options: PrettyOptions = PrettyOptions()) {
   import options._
 
   val usedLCs: mutable.Set[Name] = mutable.Set[Name]()
