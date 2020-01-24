@@ -187,7 +187,7 @@ sealed abstract class Expr(val varBound: Int, val hasLocals: Boolean) extends Pr
       case LocalConst(of, name) =>
         val of1 = of.prettyName.toString.replace('.', '_').filter { _.isLetterOrDigit }
         val of2 = if (of1.isEmpty || !of1.head.isLetter) s"n$of1" else of1
-        val n = lcs.getOrElseUpdate(name, Stream.from(0).map(i => s"$of2$i").diff(lcs.values.toSeq).head)
+        val n = lcs.getOrElseUpdate(name, LazyList.from(0).map(i => s"$of2$i").diff(lcs.values.toSeq).head)
         s"LocalConst(${of.dump}, $n)"
       case Let(dom, value, body) => s"Let(${dom.dump}, ${value.dump}, ${body.dump})"
     }

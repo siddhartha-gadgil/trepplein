@@ -58,7 +58,7 @@ object Name {
     limbs.foldLeft[Name](Anon)(Str)
 
   def fresh(suggestion: Name, blacklist: Set[Name]): Name =
-    (suggestion #:: Stream.from(0).map(i => Name.Num(suggestion, i): Name)).
+    (suggestion #:: LazyList.from(0).map(i => Name.Num(suggestion, i): Name)).
       filterNot(blacklist).head
 
   case object Anon extends Name
