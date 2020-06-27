@@ -6,11 +6,11 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class LibraryPrinter(env: PreEnvironment, notations: Map[Name, Notation],
-    out: String => Unit,
-    prettyOptions: PrettyOptions,
-    lineWidth: Int = 80,
-    printReductions: Boolean = false,
-    printDependencies: Boolean = true) {
+  out: String => Unit,
+  prettyOptions: PrettyOptions,
+  lineWidth: Int = 80,
+  printReductions: Boolean = false,
+  printDependencies: Boolean = true) {
   private val declsPrinted = mutable.Map[Name, Unit]()
   def printDecl(name: Name): Unit = declsPrinted.getOrElseUpdate(name, {
     val tc = new TypeChecker(env, unsafeUnchecked = true)
@@ -69,20 +69,20 @@ class LibraryPrinter(env: PreEnvironment, notations: Map[Name, Notation],
 }
 
 case class MainOpts(
-    inputFile: String = "",
+  inputFile: String = "",
 
-    parallel: Boolean = true,
+  parallel: Boolean = true,
 
-    printAllDecls: Boolean = false,
-    printDecls: Seq[Name] = Seq(),
-    printDependencies: Boolean = false,
-    printReductions: Boolean = false,
-    validLean: Boolean = false,
+  printAllDecls: Boolean = false,
+  printDecls: Seq[Name] = Seq(),
+  printDependencies: Boolean = false,
+  printReductions: Boolean = false,
+  validLean: Boolean = false,
 
-    showImplicits: Boolean = false,
-    useNotation: Boolean = true,
-    hideProofs: Boolean = true,
-    hideProofTerms: Boolean = false) {
+  showImplicits: Boolean = false,
+  useNotation: Boolean = true,
+  hideProofs: Boolean = true,
+  hideProofTerms: Boolean = false) {
   def prettyOpts = PrettyOptions(
     showImplicits = showImplicits,
     hideProofs = hideProofs, hideProofTerms = hideProofTerms,
@@ -91,7 +91,7 @@ case class MainOpts(
 object MainOpts {
   val parser = new scopt.OptionParser[MainOpts]("trepplein") {
     head("trepplein", "1.0")
-    override def showUsageOnError = true
+    override def showUsageOnError = Some(true)
 
     opt[Unit]('s', "sequential").action((_, c) => c.copy(parallel = false))
       .text("type-check declarations on one thread only")

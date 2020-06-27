@@ -133,7 +133,7 @@ final case class CompiledIndMod(indMod: IndMod, env: PreEnvironment) extends Com
 }
 
 final case class IndMod(name: Name, univParams: Vector[Level.Param], ty: Expr,
-    numParams: Int, intros: Vector[(Name, Expr)]) extends Modification {
+  numParams: Int, intros: Vector[(Name, Expr)]) extends Modification {
   val decl = Declaration(name, univParams, ty, builtin = true)
 
   def compile(env: PreEnvironment) = CompiledIndMod(this, env)

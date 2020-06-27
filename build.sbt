@@ -6,16 +6,16 @@ licenses := Seq("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0
 
 version := "1.0"
 
-scalaVersion := "2.12.10"
-crossScalaVersions := Seq("2.11.7")
+scalaVersion := "2.13.1"
+// crossScalaVersions := Seq("2.11.7")
 
-libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.0"
-libraryDependencies += "org.specs2" %% "specs2-core" % "4.2.0" % "test"
+libraryDependencies += "com.github.scopt" %% "scopt" % "4.0.0-RC2"
+libraryDependencies += "org.specs2" %% "specs2-core" % "4.10.0" % "test"
 
-scalacOptions ++= {
-  if (!scalaVersion.value.startsWith("2.12.")) Seq()
-  else Seq("-opt:l:inline", "-opt-inline-from:**", "-opt-warnings")
-}
+// scalacOptions ++= {
+//   if (!scalaVersion.value.startsWith("2.12.")) Seq()
+//   else Seq("-opt:l:inline", "-opt-inline-from:**", "-opt-warnings")
+// }
 
 // enablePlugins(JavaAppPackaging)
 // javaOptions in Universal ++= Seq("-J-Xss30m")
