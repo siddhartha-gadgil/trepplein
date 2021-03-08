@@ -4,3 +4,4 @@ target
 .metals/
 .bloop/
 .metaserver/
+/.bsp
